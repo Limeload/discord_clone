@@ -10,7 +10,8 @@
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "convex:deploy": "bash scripts/convex-dev.sh deploy"
+    "convex:deploy": "bash scripts/convex-dev.sh deploy",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
