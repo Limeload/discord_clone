@@ -33,6 +33,10 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #111214;
   }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer utilities {
