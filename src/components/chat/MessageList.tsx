@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import { usePaginatedQuery, useQuery, useMutation } from 'convex/react';
 import { Hash, Pencil, Trash2, Smile } from 'lucide-react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
@@ -221,7 +221,11 @@ function MessageItem({
 
 export function MessageList({ channelId, channelName }: MessageListProps) {
   const { clerkUser, convexUser } = useCurrentUser();
-  const messages = useQuery(api.messages.list, { channelId });
+  const { results: messages, status, loadMore } = usePaginatedQuery(
+    api.messages.list,
+    { channelId },
+    { initialNumItems: 50 }
+  );
   const reactionsMap = useQuery(api.reactions.getForChannel, { channelId });
   const editMessage = useMutation(api.messages.edit);
   const deleteMessage = useMutation(api.messages.remove);
@@ -240,7 +244,18 @@ export function MessageList({ channelId, channelName }: MessageListProps) {
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin" onScroll={handleScroll}>
-      {messages && messages.length === 0 && (
+      {status === 'CanLoadMore' && (
+        <div className="flex justify-center py-3">
+          <button
+            onClick={() => loadMore(50)}
+            className="text-xs text-discord-muted hover:text-discord-text transition-colors px-3 py-1 rounded bg-discord-input hover:bg-discord-hover"
+          >
+            Load earlier messages
+          </button>
+        </div>
+      )}
+
+      {messages.length === 0 && status !== 'LoadingFirstPage' && (
         <div className="px-4 pt-16 pb-4">
           <div className="w-16 h-16 rounded-full bg-discord-input flex items-center justify-center mb-4">
             <Hash size={32} className="text-discord-text" />
@@ -250,11 +265,11 @@ export function MessageList({ channelId, channelName }: MessageListProps) {
         </div>
       )}
 
-      {(messages ?? []).map((msg, i) => (
+      {messages.map((msg, i) => (
         <MessageItem
           key={msg._id}
           message={msg}
-          prevMessage={messages?.[i - 1] ?? null}
+          prevMessage={messages[i - 1] ?? null}
           reactions={reactionsMap?.[msg._id] ?? []}
           currentUserId={convexUser?._id}
           currentClerkId={clerkUser?.id ?? ''}

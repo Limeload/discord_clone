@@ -1,25 +1,26 @@
 import { mutation, query } from './_generated/server';
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 export const list = query({
   args: {
     channelId: v.id('channels'),
-    cursor: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const messages = await ctx.db
+    const result = await ctx.db
       .query('messages')
       .withIndex('by_channel', (q) => q.eq('channelId', args.channelId))
-      .order('asc')
-      .collect();
+      .order('desc')
+      .paginate(args.paginationOpts);
 
-    const withAuthors = await Promise.all(
-      messages.map(async (msg) => {
+    const page = await Promise.all(
+      result.page.map(async (msg) => {
         const author = await ctx.db.get(msg.authorId);
         return { ...msg, author };
       })
     );
-    return withAuthors;
+    return { ...result, page: page.reverse() };
   },
 });
 

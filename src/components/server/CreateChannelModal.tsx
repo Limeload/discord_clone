@@ -25,7 +25,13 @@ const channelTypes: { type: ChannelType; icon: React.ReactNode; label: string; d
     type: 'voice',
     icon: <Volume2 size={22} />,
     label: 'Voice',
-    desc: 'Hang out together with voice, video, and screen share',
+    desc: 'Hang out together with voice and screen share',
+  },
+  {
+    type: 'video',
+    icon: <Volume2 size={22} />,
+    label: 'Video',
+    desc: 'Hang out together with video, voice, and screen share',
   },
 ];
 

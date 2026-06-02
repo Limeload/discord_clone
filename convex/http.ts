@@ -1,6 +1,9 @@
 import { httpRouter } from 'convex/server';
 import { httpAction } from './_generated/server';
 import { api } from './_generated/api';
+import { Webhook } from 'svix';
+
+const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET ?? '';
 
 const http = httpRouter();
 
@@ -10,15 +13,28 @@ http.route({
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
     const payload = await request.text();
-    let data: any;
 
-    try {
-      data = JSON.parse(payload);
-    } catch {
-      return new Response('Invalid JSON', { status: 400 });
+    const svixId = request.headers.get('svix-id') ?? '';
+    const svixTimestamp = request.headers.get('svix-timestamp') ?? '';
+    const svixSignature = request.headers.get('svix-signature') ?? '';
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      return new Response('Missing svix headers', { status: 400 });
     }
 
-    const eventType = data.type;
+    let data: any;
+    try {
+      const wh = new Webhook(WEBHOOK_SECRET);
+      data = wh.verify(payload, {
+        'svix-id': svixId,
+        'svix-timestamp': svixTimestamp,
+        'svix-signature': svixSignature,
+      });
+    } catch {
+      return new Response('Invalid webhook signature', { status: 400 });
+    }
+
+    const eventType = (data as any).type;
 
     if (eventType === 'user.created' || eventType === 'user.updated') {
       const { id, first_name, last_name, username, email_addresses, image_url } = data.data;

@@ -26,6 +26,7 @@ export function useWebRTC(
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const peersRef = useRef<Map<string, PeerState>>(new Map());
 
   const sendSignal = useMutation(api.signals.send);
@@ -190,6 +191,38 @@ export function useWebRTC(
     await updateVoiceState({ channelId, clerkId, cameraOn: newCameraOn });
   }, [localStream, isCameraOn, channelId, clerkId, updateVoiceState]);
 
+  const toggleScreenShare = useCallback(async () => {
+    if (!channelId || !clerkId) return;
+
+    if (isScreenSharing) {
+      // Restore camera/mic stream
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isCameraOn });
+      const videoTrack = stream.getVideoTracks()[0] ?? null;
+      peersRef.current.forEach(({ connection }) => {
+        connection.getSenders().forEach((sender) => {
+          if (sender.track?.kind === 'video' && videoTrack) sender.replaceTrack(videoTrack);
+        });
+      });
+      setLocalStream(stream);
+      setIsScreenSharing(false);
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        peersRef.current.forEach(({ connection }) => {
+          const sender = connection.getSenders().find((s) => s.track?.kind === 'video');
+          sender?.replaceTrack(screenTrack);
+        });
+        const audio = localStream?.getAudioTracks() ?? [];
+        setLocalStream(new MediaStream([...audio, screenTrack]));
+        setIsScreenSharing(true);
+        screenTrack.onended = () => setIsScreenSharing(false);
+      } catch {
+        // user cancelled
+      }
+    }
+  }, [channelId, clerkId, isScreenSharing, isCameraOn, localStream]);
+
   const toggleDeafen = useCallback(async () => {
     const newDeafened = !isDeafened;
     setIsDeafened(newDeafened);
@@ -207,11 +240,13 @@ export function useWebRTC(
     isMuted,
     isCameraOn,
     isDeafened,
+    isScreenSharing,
     voiceParticipants: voiceParticipants ?? [],
     join,
     leave,
     toggleMute,
     toggleCamera,
     toggleDeafen,
+    toggleScreenShare,
   };
 }

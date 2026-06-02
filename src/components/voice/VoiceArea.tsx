@@ -63,12 +63,14 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
     isMuted,
     isCameraOn,
     isDeafened,
+    isScreenSharing,
     voiceParticipants,
     join,
     leave,
     toggleMute,
     toggleCamera,
     toggleDeafen,
+    toggleScreenShare,
   } = useWebRTC(channelId, clerkUser?.id ?? '', convexUser?._id ?? null);
 
   useEffect(() => {
@@ -199,7 +201,7 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
           {isDeafened ? <HeadphoneOff size={20} /> : <Headphones size={20} />}
         </ControlButton>
 
-        <ControlButton onClick={() => {}} title="Share screen">
+        <ControlButton onClick={toggleScreenShare} active={isScreenSharing} title={isScreenSharing ? 'Stop sharing' : 'Share screen'}>
           <Monitor size={20} />
         </ControlButton>
 

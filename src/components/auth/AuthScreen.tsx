@@ -21,8 +21,9 @@ const clerkAppearance = {
   },
   elements: {
     // Remove Clerk's outer card shadow/border — we provide our own card
-    card: 'shadow-none bg-transparent p-0',
+    card: 'shadow-none bg-transparent p-0 !overflow-visible',
     rootBox: 'w-full',
+    cardBox: '!overflow-visible',
     // Header
     headerTitle: 'text-white text-2xl font-bold',
     headerSubtitle: 'text-[#b5bac1] text-sm',
@@ -48,9 +49,7 @@ const clerkAppearance = {
     footerActionLink: 'hidden',
     footerActionText: 'hidden',
     footer: 'bg-transparent border-t border-[#3f4147]',
-    // Internal card background
-    cardBox: 'shadow-none',
-    main: 'bg-transparent',
+    main: 'bg-transparent !overflow-visible',
     // Identity preview (after signing in step)
     identityPreviewText: 'text-[#dbdee1]',
     identityPreviewEditButton: 'text-[#00a8fc]',
@@ -67,7 +66,7 @@ export function AuthScreen() {
   const [view, setView] = useState<View>('sign-in');
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center relative overflow-hidden bg-[#313338]">
+    <div className="h-screen w-screen flex flex-col items-center justify-start overflow-x-hidden overflow-y-auto relative bg-[#313338] py-8">
       {/* Background blobs */}
       <div className="absolute inset-0 pointer-events-none">
         <div
