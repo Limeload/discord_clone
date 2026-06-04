@@ -233,7 +233,7 @@ export function AuthScreen() {
       </div>
 
       {/* Right panel — auth form */}
-      <div className="flex flex-col items-center justify-center w-full lg:w-[500px] relative z-10 px-5 py-8 overflow-y-auto">
+      <div className="flex flex-col items-center justify-center w-full lg:w-[500px] lg:mr-20 relative z-10 px-5 py-8 overflow-y-auto">
         <div
           className="w-full max-w-md rounded-2xl px-8 pt-8 pb-4"
           style={{
