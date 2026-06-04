@@ -45,3 +45,26 @@
     scrollbar-color: #1a1b1e transparent;
   }
 }
+
+@keyframes auth-blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(40px, -60px) scale(1.06); }
+  50% { transform: translate(-30px, 40px) scale(0.94); }
+  75% { transform: translate(50px, 25px) scale(1.04); }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.6); }
+}
+
+@keyframes float-up {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
