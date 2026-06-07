@@ -26,8 +26,8 @@ export function JoinServerModal({ onClose, onJoined }: JoinServerModalProps) {
     try {
       const serverId = await joinServer({ inviteCode: code, clerkId: clerkUser.id });
       onJoined(serverId);
-    } catch (err: any) {
-      setError(err.message ?? 'Invalid invite code');
+    } catch {
+      setError('Invalid invite code. Please check and try again.');
     } finally {
       setLoading(false);
     }
