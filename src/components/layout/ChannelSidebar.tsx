@@ -187,6 +187,11 @@ export function ChannelSidebar({
   const [showMembers, setShowMembers] = useState(true);
   const [renamingServer, setRenamingServer] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  const RESERVED_SERVER_NAMES = new Set([
+    'discord', 'admin', 'administrator', 'staff', 'support', 'official', 'system', 'null', 'undefined',
+  ]);
 
   const myMembership = members?.find((m) => m.userId === convexUser?._id);
   const isOwner = myMembership?.role === 'owner';
@@ -210,9 +215,23 @@ export function ChannelSidebar({
   }
 
   async function handleRenameServer() {
-    if (!clerkUser || !renameValue.trim()) return;
-    await renameServer({ serverId, name: renameValue.trim(), clerkId: clerkUser.id });
-    setRenamingServer(false);
+    if (!clerkUser) return;
+    const name = renameValue.trim();
+    if (name.length < 2 || name.length > 100) {
+      setRenameError('Name must be 2–100 characters');
+      return;
+    }
+    if (RESERVED_SERVER_NAMES.has(name.toLowerCase())) {
+      setRenameError(`"${name}" is a reserved name`);
+      return;
+    }
+    setRenameError(null);
+    try {
+      await renameServer({ serverId, name, clerkId: clerkUser.id });
+      setRenamingServer(false);
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : 'Rename failed');
+    }
   }
 
   const onlineMembers = (members ?? []).filter((m) => m.user?.isOnline);
@@ -223,23 +242,29 @@ export function ChannelSidebar({
       {/* Server header */}
       <div className="relative">
         {renamingServer ? (
-          <div className="h-12 flex items-center px-3 gap-1 border-b border-black/30">
-            <input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameServer();
-                if (e.key === 'Escape') setRenamingServer(false);
-              }}
-              className="flex-1 bg-discord-input text-white text-sm px-2 py-1 rounded outline-none focus:ring-1 focus:ring-discord-link"
-            />
-            <button onClick={handleRenameServer} className="p-1 text-discord-green hover:text-white">
-              <Check size={14} />
-            </button>
-            <button onClick={() => setRenamingServer(false)} className="p-1 text-discord-muted hover:text-white">
-              <X size={14} />
-            </button>
+          <div className="border-b border-black/30">
+            <div className="h-12 flex items-center px-3 gap-1">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => { setRenameValue(e.target.value); setRenameError(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameServer();
+                  if (e.key === 'Escape') { setRenamingServer(false); setRenameError(null); }
+                }}
+                maxLength={100}
+                className="flex-1 bg-discord-input text-white text-sm px-2 py-1 rounded outline-none focus:ring-1 focus:ring-discord-link"
+              />
+              <button onClick={handleRenameServer} className="p-1 text-discord-green hover:text-white">
+                <Check size={14} />
+              </button>
+              <button onClick={() => { setRenamingServer(false); setRenameError(null); }} className="p-1 text-discord-muted hover:text-white">
+                <X size={14} />
+              </button>
+            </div>
+            {renameError && (
+              <p className="text-xs text-red-400 px-3 pb-1.5">{renameError}</p>
+            )}
           </div>
         ) : (
           <button

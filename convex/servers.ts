@@ -143,6 +143,10 @@ export const leave = mutation({
   },
 });
 
+const RESERVED_SERVER_NAMES = new Set([
+  'discord', 'admin', 'administrator', 'staff', 'support', 'official', 'system', 'null', 'undefined',
+]);
+
 export const rename = mutation({
   args: { serverId: v.id('servers'), name: v.string(), clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -156,7 +160,12 @@ export const rename = mutation({
     if (!server) throw new Error('Server not found');
     if (server.ownerId !== user._id) throw new Error('Not authorized');
 
-    await ctx.db.patch(args.serverId, { name: args.name.trim() });
+    const name = args.name.trim();
+    if (name.length < 2 || name.length > 100) throw new Error('Server name must be 2–100 characters');
+    if (RESERVED_SERVER_NAMES.has(name.toLowerCase())) throw new Error(`"${name}" is a reserved server name`);
+
+    await ctx.db.patch(args.serverId, { name });
+    return ctx.db.get(args.serverId);
   },
 });
 
