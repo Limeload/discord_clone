@@ -21,12 +21,25 @@ function ReactionPicker({
   onPick: (emoji: string) => void;
   onClose: () => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    containerRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, []);
+
   return (
-    <div className="absolute right-0 -top-10 bg-discord-sidebar border border-black/20 rounded-lg flex shadow-lg z-20 p-1 gap-0.5">
+    <div
+      ref={containerRef}
+      role="dialog"
+      aria-label="Pick a reaction"
+      className="absolute right-0 -top-10 bg-discord-sidebar border border-black/20 rounded-lg flex shadow-lg z-20 p-1 gap-0.5"
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
       {QUICK_EMOJIS.map((emoji) => (
         <button
           key={emoji}
           onClick={() => { onPick(emoji); onClose(); }}
+          aria-label={`React with ${emoji}`}
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-discord-hover text-lg transition-colors"
         >
           {emoji}
@@ -56,6 +69,7 @@ function MessageItem({
   currentClerkId: string;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showPicker, setShowPicker] = useState(false);
@@ -84,18 +98,24 @@ function MessageItem({
 
   return (
     <div
+      role="article"
+      aria-label={`Message from ${message.author?.name ?? 'Unknown'}`}
       className={cn('relative px-4 hover:bg-white/5 group', sameAuthor ? 'py-0.5' : 'py-2 mt-2')}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setShowPicker(false); }}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false); }}
     >
       {/* Action toolbar */}
-      {hovered && !editing && (
+      {(hovered || focused) && !editing && (
         <div className="absolute right-4 -top-3 bg-discord-sidebar border border-black/20 rounded flex shadow-lg z-10">
           <div className="relative">
             <button
               onClick={() => setShowPicker((v) => !v)}
+              aria-label="Add reaction"
+              aria-expanded={showPicker}
+              aria-haspopup="dialog"
               className="p-1.5 hover:bg-discord-hover text-discord-muted hover:text-discord-text rounded-l transition-colors"
-              title="Add reaction"
             >
               <Smile size={14} />
             </button>
@@ -109,16 +129,16 @@ function MessageItem({
           {isOwn && (
             <button
               onClick={() => { setEditing(true); setEditContent(message.content); }}
+              aria-label="Edit message"
               className="p-1.5 hover:bg-discord-hover text-discord-muted hover:text-discord-text transition-colors"
-              title="Edit"
             >
               <Pencil size={14} />
             </button>
           )}
           <button
             onClick={() => onDelete(message._id)}
+            aria-label="Delete message"
             className="p-1.5 hover:bg-discord-hover text-discord-muted hover:text-discord-red rounded-r transition-colors"
-            title="Delete"
           >
             <Trash2 size={14} />
           </button>
@@ -157,15 +177,16 @@ function MessageItem({
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditSubmit(); }
                   if (e.key === 'Escape') setEditing(false);
                 }}
+                aria-label="Edit message content"
                 className="w-full bg-discord-input text-discord-text rounded px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-discord-link"
                 rows={2}
                 autoFocus
               />
               <div className="flex items-center gap-2 mt-1 text-xs text-discord-muted">
                 <span>escape to</span>
-                <button onClick={() => setEditing(false)} className="text-discord-link hover:underline">cancel</button>
+                <button onClick={() => setEditing(false)} aria-label="Cancel edit" className="text-discord-link hover:underline">cancel</button>
                 <span>• enter to</span>
-                <button onClick={handleEditSubmit} className="text-discord-link hover:underline">save</button>
+                <button onClick={handleEditSubmit} aria-label="Save edit" className="text-discord-link hover:underline">save</button>
               </div>
             </div>
           ) : (
@@ -199,6 +220,8 @@ function MessageItem({
                   <button
                     key={r.emoji}
                     onClick={() => onReact(message._id, r.emoji)}
+                    aria-label={`${r.emoji} ${r.count} ${r.count === 1 ? 'reaction' : 'reactions'}${reacted ? ', you reacted' : ', click to react'}`}
+                    aria-pressed={reacted}
                     className={cn(
                       'flex items-center gap-1 px-2 py-0.5 rounded-full text-sm border transition-colors',
                       reacted
@@ -243,7 +266,13 @@ export function MessageList({ channelId, channelName }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto scrollbar-thin" onScroll={handleScroll}>
+    <div
+      role="log"
+      aria-label="Channel messages"
+      aria-live="polite"
+      className="flex-1 overflow-y-auto scrollbar-thin"
+      onScroll={handleScroll}
+    >
       {status === 'CanLoadMore' && (
         <div className="flex justify-center py-3">
           <button
