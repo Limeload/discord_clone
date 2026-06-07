@@ -11,7 +11,8 @@ export default defineSchema({
     isOnline: v.optional(v.boolean()),
   })
     .index('by_clerk_id', ['clerkId'])
-    .index('by_username', ['username']),
+    .index('by_username', ['username'])
+    .index('by_email', ['email']),
 
   servers: defineTable({
     name: v.string(),
