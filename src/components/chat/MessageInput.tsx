@@ -16,6 +16,13 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
+  const ALLOWED_TYPES = new Set([
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'video/webm', 'video/ogg',
+    'application/pdf', 'text/plain',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ]);
   const { clerkUser } = useCurrentUser();
   const sendMessage = useMutation(api.messages.send);
   const setTyping = useMutation(api.messages.setTyping);
@@ -47,6 +54,11 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
     if (!clerkUser) return;
 
     setUploadError(null);
+
+    if (!ALLOWED_TYPES.has(file.type)) {
+      setUploadError('File type not supported. Allowed: images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, OGG), PDF, plain text, and Word documents.');
+      return;
+    }
 
     if (file.size > MAX_FILE_SIZE) {
       setUploadError('File too large. Maximum size is 25 MB.');
