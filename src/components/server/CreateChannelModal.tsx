@@ -43,21 +43,37 @@ export function CreateChannelModal({
   const [name, setName] = useState('');
   const [type, setType] = useState<ChannelType>('text');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { clerkUser } = useCurrentUser();
   const createChannel = useMutation(api.channels.create);
 
+  const RESERVED = new Set(['api', 'admin', 'system', 'bot', 'everyone', 'here', 'null', 'undefined', 'mod', 'moderator']);
+
+  function getNameError(value: string): string | null {
+    if (value.length === 0) return null;
+    if (value.length < 2) return 'Name must be at least 2 characters';
+    if (RESERVED.has(value)) return `"${value}" is a reserved name`;
+    return null;
+  }
+
+  const nameError = getNameError(name);
+  const canSubmit = name.length >= 2 && !nameError && !loading;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !clerkUser) return;
+    if (!canSubmit || !clerkUser) return;
+    setError(null);
     setLoading(true);
     try {
       const channelId = await createChannel({
-        name: name.trim(),
+        name,
         type,
         serverId,
         clerkId: clerkUser.id,
       });
       onCreated(channelId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create channel');
     } finally {
       setLoading(false);
     }
@@ -131,15 +147,28 @@ export function CreateChannelModal({
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) =>
-                    setName(e.target.value.toLowerCase().replace(/\s+/g, '-'))
-                  }
+                  onChange={(e) => {
+                    setError(null);
+                    setName(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+                  }}
                   placeholder="new-channel"
-                  className="w-full bg-discord-channel-bg text-discord-text rounded pl-8 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-discord-link"
-                  maxLength={100}
+                  className={cn(
+                    'w-full bg-discord-channel-bg text-discord-text rounded pl-8 pr-3 py-2.5 text-sm outline-none focus:ring-2',
+                    nameError ? 'focus:ring-red-500 ring-1 ring-red-500' : 'focus:ring-discord-link'
+                  )}
+                  maxLength={32}
                   autoFocus
                 />
               </div>
+              <div className="flex justify-between mt-1">
+                {nameError ? (
+                  <p className="text-xs text-red-400">{nameError}</p>
+                ) : (
+                  <p className="text-xs text-discord-muted">Lowercase letters, numbers, and hyphens only</p>
+                )}
+                <p className="text-xs text-discord-muted">{name.length}/32</p>
+              </div>
+              {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
             </div>
 
             <div className="flex justify-between pt-2">
@@ -152,7 +181,7 @@ export function CreateChannelModal({
               </button>
               <button
                 type="submit"
-                disabled={!name.trim() || loading}
+                disabled={!canSubmit}
                 className="px-6 py-2.5 bg-discord-link hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
               >
                 {loading ? 'Creating...' : 'Create Channel'}

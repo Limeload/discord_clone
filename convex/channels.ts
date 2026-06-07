@@ -1,6 +1,15 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
+const RESERVED_NAMES = new Set([
+  'api', 'admin', 'system', 'bot', 'everyone', 'here',
+  'null', 'undefined', 'mod', 'moderator',
+]);
+
+function normaliseChannelName(raw: string): string {
+  return raw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
 export const getByServer = query({
   args: { serverId: v.id('servers') },
   handler: async (ctx, args) => {
@@ -43,8 +52,19 @@ export const create = mutation({
       throw new Error('Not authorized');
     }
 
+    const name = normaliseChannelName(args.name);
+    if (name.length < 2 || name.length > 32) throw new Error('Channel name must be 2–32 characters');
+    if (RESERVED_NAMES.has(name)) throw new Error(`"${name}" is a reserved channel name`);
+
+    const duplicate = await ctx.db
+      .query('channels')
+      .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
+      .filter((q) => q.eq(q.field('name'), name))
+      .first();
+    if (duplicate) throw new Error('A channel with that name already exists in this server');
+
     return ctx.db.insert('channels', {
-      name: args.name.toLowerCase().replace(/\s+/g, '-'),
+      name,
       type: args.type,
       serverId: args.serverId,
       category: args.category,
