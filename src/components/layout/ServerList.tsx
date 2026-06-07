@@ -1,3 +1,27 @@
+/**
+ * ServerList — the narrow 72 px icon rail on the far-left of the layout.
+ *
+ * Layout position:
+ *   ServerList (72 px) → ChannelSidebar (240 px) → main content area
+ *
+ * Visual pattern — circle-to-squircle morph:
+ *   Each icon transitions from rounded-full (circle) to rounded-2xl
+ *   (squircle) on hover or selection, a deliberate Discord UX convention
+ *   that signals interactivity without requiring a label.
+ *
+ * Active pill:
+ *   A 4 px-wide absolutely-positioned div animates its height from 0 →
+ *   20 px (hover) or 40 px (selected). It is a sibling element rather
+ *   than a pseudo-element so Tailwind transition utilities can drive the
+ *   height change without custom CSS.
+ *
+ * Extension points:
+ *   - Notification badges: layer a count indicator inside ServerIcon.
+ *   - Drag-to-reorder: wrap the server list in a DnD context (e.g. dnd-kit).
+ *   - Server folders: nest sets of ServerIcons inside collapsible groups.
+ *   - Unread dot: add a small circle at bottom-right of ServerIcon using
+ *     absolute positioning, toggled by a per-server unread count query.
+ */
 import { useQuery } from 'convex/react';
 import { Plus, Compass } from 'lucide-react';
 import { api } from '../../../convex/_generated/api';
@@ -13,6 +37,17 @@ interface ServerListProps {
   onJoinServer: () => void;
 }
 
+/**
+ * ServerIcon — one entry in the server rail.
+ *
+ * Falls back to `stringToColor(name)` as the background when no imageUrl is
+ * provided, so every server always has a visually distinct avatar.
+ *
+ * The pill indicator (`left-0 w-1`) is a sibling of the button, not a
+ * pseudo-element. It lives inside a `w-full` container so it can reach the
+ * absolute left edge of the 72 px column; the button itself is just
+ * `w-12 h-12` and centred, so a pseudo-element on the button would be offset.
+ */
 function ServerIcon({
   name,
   imageUrl,
@@ -25,9 +60,8 @@ function ServerIcon({
   onClick: () => void;
 }) {
   return (
-    // w-full so the pill can anchor to the left edge of the 72px column
     <div className="relative group w-full flex items-center justify-center" onClick={onClick}>
-      {/* Active pill — anchored to the left edge of the column, always within bounds */}
+      {/* Height animates: 0 → 20px on hover, 0 → 40px when selected */}
       <div
         className={cn(
           'absolute left-0 w-1 bg-white rounded-r transition-all duration-200',
