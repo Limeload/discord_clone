@@ -5,6 +5,21 @@ import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const SEND_COOLDOWN_MS = 500;
+const ALLOWED_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/webm', 'video/ogg',
+  'application/pdf', 'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+// Strip null bytes and non-printable ASCII control chars; keep \n and \t.
+function sanitizeContent(raw: string): string {
+  return raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+}
+
 interface MessageInputProps {
   channelId: Id<'channels'>;
   channelName: string;
@@ -13,16 +28,9 @@ interface MessageInputProps {
 export function MessageInput({ channelId, channelName }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const MAX_FILE_SIZE = 25 * 1024 * 1024;
-  const ALLOWED_TYPES = new Set([
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    'video/mp4', 'video/webm', 'video/ogg',
-    'application/pdf', 'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ]);
+  const lastSentAt = useRef(0);
   const { clerkUser } = useCurrentUser();
   const sendMessage = useMutation(api.messages.send);
   const setTyping = useMutation(api.messages.setTyping);
@@ -38,16 +46,20 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
   }, [channelId, clerkUser, setTyping]);
 
   async function handleSend() {
-    if ((!content.trim() && !uploading) || !clerkUser) return;
+    if (sending || !clerkUser) return;
+    if (Date.now() - lastSentAt.current < SEND_COOLDOWN_MS) return;
 
-    const text = content.trim();
+    const text = sanitizeContent(content);
+    if (!text) return;
+
+    lastSentAt.current = Date.now();
+    setSending(true);
     setContent('');
-
-    await sendMessage({
-      content: text || '📎',
-      channelId,
-      clerkId: clerkUser.id,
-    });
+    try {
+      await sendMessage({ content: text, channelId, clerkId: clerkUser.id });
+    } finally {
+      setSending(false);
+    }
   }
 
   async function handleFileUpload(file: File) {
@@ -77,7 +89,7 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
       const fileUrl = await getFileUrl({ storageId, clerkId: clerkUser.id });
 
       await sendMessage({
-        content: file.name,
+        content: sanitizeContent(file.name) || 'attachment',
         channelId,
         clerkId: clerkUser.id,
         fileUrl: fileUrl ?? undefined,
