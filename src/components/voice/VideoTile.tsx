@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { MicOff, VideoOff } from 'lucide-react';
+import { MicOff, VideoOff, Loader2, WifiOff } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import { cn } from '../../lib/utils';
+import type { PeerStatus } from '../../hooks/useWebRTC';
 
 interface VideoTileProps {
   stream: MediaStream | null;
@@ -10,6 +11,7 @@ interface VideoTileProps {
   isMuted?: boolean;
   isCameraOn?: boolean;
   isLocal?: boolean;
+  connectionState?: PeerStatus;
 }
 
 export function VideoTile({
@@ -19,6 +21,7 @@ export function VideoTile({
   isMuted,
   isCameraOn,
   isLocal,
+  connectionState,
 }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -42,6 +45,35 @@ export function VideoTile({
         <div className="flex flex-col items-center gap-3">
           <Avatar name={name} imageUrl={imageUrl} size="lg" />
           <VideoOff size={20} className="text-discord-muted absolute top-2 right-2" />
+        </div>
+      )}
+
+      {/* Connection state overlay */}
+      {connectionState && connectionState !== 'connected' && (
+        <div
+          className={cn(
+            'absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-lg bg-black/60',
+            connectionState === 'failed' && 'bg-red-950/70'
+          )}
+        >
+          {connectionState === 'connecting' && (
+            <>
+              <Loader2 size={24} className="text-discord-muted animate-spin" />
+              <span className="text-xs text-discord-muted">Connecting…</span>
+            </>
+          )}
+          {connectionState === 'degraded' && (
+            <>
+              <WifiOff size={24} className="text-yellow-400" />
+              <span className="text-xs text-yellow-400">Reconnecting…</span>
+            </>
+          )}
+          {connectionState === 'failed' && (
+            <>
+              <WifiOff size={24} className="text-red-400" />
+              <span className="text-xs text-red-400">Connection failed</span>
+            </>
+          )}
         </div>
       )}
 

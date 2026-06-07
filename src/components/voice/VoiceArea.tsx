@@ -66,6 +66,9 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
     isScreenSharing,
     mediaError,
     clearMediaError,
+    rtcError,
+    clearRtcError,
+    peerConnectionStates,
     voiceParticipants,
     join,
     leave,
@@ -74,6 +77,9 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
     toggleDeafen,
     toggleScreenShare,
   } = useWebRTC(channelId, clerkUser?.id ?? '', convexUser?._id ?? null);
+
+  const hasFailedPeer = Array.from(peerConnectionStates.values()).some((s) => s === 'failed');
+  const hasDegradedPeer = Array.from(peerConnectionStates.values()).some((s) => s === 'degraded');
 
   useEffect(() => {
     join(false);
@@ -97,9 +103,38 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
           <span className="text-white text-xs font-bold">🔊</span>
         </div>
         <span className="font-semibold text-white">{channel?.name}</span>
-        <span className="text-discord-muted text-sm ml-1">Voice Connected</span>
-        <span className="ml-2 w-2 h-2 rounded-full bg-discord-green animate-pulse" />
+        {hasFailedPeer ? (
+          <span className="text-red-400 text-sm ml-1">Connection issues</span>
+        ) : hasDegradedPeer ? (
+          <span className="text-yellow-400 text-sm ml-1">Reconnecting…</span>
+        ) : (
+          <span className="text-discord-muted text-sm ml-1">Voice Connected</span>
+        )}
+        <span
+          className={cn(
+            'ml-2 w-2 h-2 rounded-full',
+            hasFailedPeer ? 'bg-red-400' : hasDegradedPeer ? 'bg-yellow-400 animate-pulse' : 'bg-discord-green animate-pulse'
+          )}
+        />
       </div>
+
+      {/* RTC error banner */}
+      {rtcError && (
+        <div className="mx-4 mt-3 flex items-start gap-3 bg-red-900/40 border border-red-700/60 rounded-lg px-4 py-3">
+          <span className="text-red-400 text-lg shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-300">Connection error</p>
+            <p className="text-xs text-red-400 mt-0.5">{rtcError}</p>
+          </div>
+          <button
+            onClick={clearRtcError}
+            className="text-red-400 hover:text-red-200 shrink-0 text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Media access error banner */}
       {mediaError && (
@@ -181,6 +216,7 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
                   imageUrl={participant?.user?.imageUrl}
                   isMuted={participant?.muted}
                   isCameraOn={participant?.cameraOn}
+                  connectionState={peerConnectionStates.get(peer.userId)}
                 />
               );
             })}

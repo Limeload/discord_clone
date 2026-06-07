@@ -9,6 +9,8 @@ interface PeerState {
   connection: RTCPeerConnection;
 }
 
+export type PeerStatus = 'connecting' | 'connected' | 'degraded' | 'failed';
+
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -28,6 +30,8 @@ export function useWebRTC(
   const [isDeafened, setIsDeafened] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [rtcError, setRtcError] = useState<string | null>(null);
+  const [peerConnectionStates, setPeerConnectionStates] = useState<Map<string, PeerStatus>>(new Map());
   const peersRef = useRef<Map<string, PeerState>>(new Map());
 
   const sendSignal = useMutation(api.signals.send);
@@ -50,6 +54,8 @@ export function useWebRTC(
     (remoteUserId: string, remoteConvexId: Id<'users'>) => {
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
+      setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'connecting'));
+
       pc.onicecandidate = (e) => {
         if (e.candidate && channelId && clerkId) {
           sendSignal({
@@ -59,6 +65,28 @@ export function useWebRTC(
             payload: JSON.stringify(e.candidate),
             clerkId,
           });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        if (s === 'connected') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'connected'));
+        } else if (s === 'disconnected') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'degraded'));
+        } else if (s === 'failed' || s === 'closed') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'failed'));
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
+        if (s === 'connected' || s === 'completed') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'connected'));
+        } else if (s === 'disconnected') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'degraded'));
+        } else if (s === 'failed') {
+          setPeerConnectionStates((prev) => new Map(prev).set(remoteUserId, 'failed'));
         }
       };
 
@@ -101,26 +129,28 @@ export function useWebRTC(
 
       const pc = peerState.connection;
 
-      if (signal.type === 'offer') {
-        await pc.setRemoteDescription(JSON.parse(signal.payload));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendSignal({
-          toUserId: signal.fromUserId as Id<'users'>,
-          channelId,
-          type: 'answer',
-          payload: JSON.stringify(answer),
-          clerkId,
-        });
-      } else if (signal.type === 'answer') {
-        await pc.setRemoteDescription(JSON.parse(signal.payload));
-      } else if (signal.type === 'ice-candidate') {
-        try {
+      try {
+        if (signal.type === 'offer') {
+          await pc.setRemoteDescription(JSON.parse(signal.payload));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await sendSignal({
+            toUserId: signal.fromUserId as Id<'users'>,
+            channelId,
+            type: 'answer',
+            payload: JSON.stringify(answer),
+            clerkId,
+          });
+        } else if (signal.type === 'answer') {
+          await pc.setRemoteDescription(JSON.parse(signal.payload));
+        } else if (signal.type === 'ice-candidate') {
           await pc.addIceCandidate(JSON.parse(signal.payload));
-        } catch {}
+        }
+        await markProcessed({ signalId: signal._id });
+      } catch (err) {
+        console.error('WebRTC signal processing error:', err);
+        setRtcError('A connection error occurred. One or more participants may not be heard.');
       }
-
-      await markProcessed({ signalId: signal._id });
     });
   }, [incomingSignals, channelId, clerkId, currentUserId, createPeerConnection, sendSignal, markProcessed]);
 
@@ -138,6 +168,15 @@ export function useWebRTC(
   const join = useCallback(
     async (withVideo = false) => {
       if (!channelId || !clerkId) return;
+
+      if (typeof RTCPeerConnection === 'undefined') {
+        setRtcError('Your browser does not support WebRTC. Please use a modern browser such as Chrome, Firefox, or Safari.');
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setRtcError('Media devices are unavailable. Ensure the page is served over HTTPS.');
+        return;
+      }
 
       let stream: MediaStream;
       try {
@@ -190,6 +229,7 @@ export function useWebRTC(
     peersRef.current.forEach(({ connection }) => connection.close());
     peersRef.current.clear();
     setPeers(new Map());
+    setPeerConnectionStates(new Map());
 
     await leaveVoice({ channelId, clerkId });
   }, [channelId, clerkId, localStream, leaveVoice]);
@@ -269,6 +309,9 @@ export function useWebRTC(
     isScreenSharing,
     mediaError,
     clearMediaError: () => setMediaError(null),
+    rtcError,
+    clearRtcError: () => setRtcError(null),
+    peerConnectionStates,
     voiceParticipants: voiceParticipants ?? [],
     join,
     leave,
