@@ -12,7 +12,21 @@ http.route({
   path: '/clerk-webhook',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
-    const payload = await request.text();
+    const contentType = request.headers.get('content-type') ?? '';
+    if (!contentType.startsWith('application/json')) {
+      return new Response('Unsupported content type', { status: 415 });
+    }
+
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > 1_048_576) {
+      return new Response('Payload too large', { status: 413 });
+    }
+
+    const buffer = await request.arrayBuffer();
+    if (buffer.byteLength > 1_048_576) {
+      return new Response('Payload too large', { status: 413 });
+    }
+    const payload = new TextDecoder().decode(buffer);
 
     const svixId = request.headers.get('svix-id') ?? '';
     const svixTimestamp = request.headers.get('svix-timestamp') ?? '';
