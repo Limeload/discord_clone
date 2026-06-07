@@ -31,7 +31,9 @@ export default defineSchema({
     category: v.optional(v.string()),
   })
     .index('by_server', ['serverId'])
-    .index('by_server_and_type', ['serverId', 'type']),
+    .index('by_server_and_type', ['serverId', 'type'])
+    // Used by the create mutation to enforce per-server name uniqueness in O(log n).
+    .index('by_server_and_name', ['serverId', 'name']),
 
   members: defineTable({
     userId: v.id('users'),
@@ -77,7 +79,9 @@ export default defineSchema({
   })
     .index('by_to_user', ['toUserId'])
     .index('by_channel', ['channelId'])
-    .index('by_to_user_and_channel', ['toUserId', 'channelId']),
+    .index('by_to_user_and_channel', ['toUserId', 'channelId'])
+    // Used by receive to fetch unprocessed signals in O(log n) without a post-index filter.
+    .index('by_to_user_channel_processed', ['toUserId', 'channelId', 'processed']),
 
   // Message reactions
   reactions: defineTable({
@@ -86,7 +90,9 @@ export default defineSchema({
     emoji: v.string(),
   })
     .index('by_message', ['messageId'])
-    .index('by_message_and_user', ['messageId', 'userId']),
+    .index('by_message_and_user', ['messageId', 'userId'])
+    // Used by toggle to check existing reaction in O(log n) without a post-index filter.
+    .index('by_message_user_emoji', ['messageId', 'userId', 'emoji']),
 
   // Voice channel participants
   voiceParticipants: defineTable({

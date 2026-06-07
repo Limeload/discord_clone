@@ -38,10 +38,9 @@ export const receive = query({
 
     return ctx.db
       .query('signals')
-      .withIndex('by_to_user_and_channel', (q) =>
-        q.eq('toUserId', user._id).eq('channelId', args.channelId)
+      .withIndex('by_to_user_channel_processed', (q) =>
+        q.eq('toUserId', user._id).eq('channelId', args.channelId).eq('processed', false)
       )
-      .filter((q) => q.eq(q.field('processed'), false))
       .collect();
   },
 });

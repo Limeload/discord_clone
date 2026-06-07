@@ -16,10 +16,9 @@ export const toggle = mutation({
 
     const existing = await ctx.db
       .query('reactions')
-      .withIndex('by_message_and_user', (q) =>
-        q.eq('messageId', args.messageId).eq('userId', user._id)
+      .withIndex('by_message_user_emoji', (q) =>
+        q.eq('messageId', args.messageId).eq('userId', user._id).eq('emoji', args.emoji)
       )
-      .filter((q) => q.eq(q.field('emoji'), args.emoji))
       .unique();
 
     if (existing) {

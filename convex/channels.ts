@@ -58,8 +58,7 @@ export const create = mutation({
 
     const duplicate = await ctx.db
       .query('channels')
-      .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
-      .filter((q) => q.eq(q.field('name'), name))
+      .withIndex('by_server_and_name', (q) => q.eq('serverId', args.serverId).eq('name', name))
       .first();
     if (duplicate) throw new Error('A channel with that name already exists in this server');
 
