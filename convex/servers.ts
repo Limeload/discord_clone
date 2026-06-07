@@ -2,7 +2,8 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
 function generateInviteCode(): string {
-  return Math.random().toString(36).substring(2, 10).toUpperCase();
+  // crypto.randomUUID() is CSPRNG-backed; far more entropy than Math.random()
+  return crypto.randomUUID().replace(/-/g, '').substring(0, 10).toUpperCase();
 }
 
 export const create = mutation({
