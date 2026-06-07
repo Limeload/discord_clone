@@ -13,6 +13,9 @@ interface MessageInputProps {
 export function MessageInput({ channelId, channelName }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const MAX_FILE_SIZE = 25 * 1024 * 1024;
   const { clerkUser } = useCurrentUser();
   const sendMessage = useMutation(api.messages.send);
   const setTyping = useMutation(api.messages.setTyping);
@@ -42,16 +45,24 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
 
   async function handleFileUpload(file: File) {
     if (!clerkUser) return;
+
+    setUploadError(null);
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError('File too large. Maximum size is 25 MB.');
+      return;
+    }
+
     setUploading(true);
     try {
-      const uploadUrl = await generateUploadUrl({});
+      const uploadUrl = await generateUploadUrl({ clerkId: clerkUser.id });
       const result = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Content-Type': file.type },
         body: file,
       });
       const { storageId } = await result.json();
-      const fileUrl = await getFileUrl({ storageId });
+      const fileUrl = await getFileUrl({ storageId, clerkId: clerkUser.id });
 
       await sendMessage({
         content: file.name,
@@ -60,6 +71,8 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
         fileUrl: fileUrl ?? undefined,
         fileType: file.type,
       });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -129,6 +142,9 @@ export function MessageInput({ channelId, channelName }: MessageInputProps) {
 
       {uploading && (
         <p className="text-xs text-discord-muted mt-1 px-1">Uploading file...</p>
+      )}
+      {uploadError && (
+        <p className="text-xs text-red-400 mt-1 px-1">{uploadError}</p>
       )}
     </div>
   );

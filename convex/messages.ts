@@ -2,6 +2,23 @@ import { mutation, query } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
+  'application/pdf',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_CONTENT_LENGTH = 2000;
+
 export const list = query({
   args: {
     channelId: v.id('channels'),
@@ -38,6 +55,9 @@ export const send = mutation({
       .withIndex('by_clerk_id', (q) => q.eq('clerkId', args.clerkId))
       .unique();
     if (!user) throw new Error('User not found');
+
+    if (args.content.length > MAX_CONTENT_LENGTH) throw new Error('Message content too long');
+    if (args.fileType && !ALLOWED_MIME_TYPES.has(args.fileType)) throw new Error('File type not allowed');
 
     // Clear typing indicator on send
     const typing = await ctx.db
@@ -107,20 +127,50 @@ export const remove = mutation({
       if (!member || member.role === 'member') throw new Error('Not authorized');
     }
 
-    await ctx.db.patch(args.messageId, { deleted: true, content: 'This message was deleted.' });
+    await ctx.db.patch(args.messageId, {
+      deleted: true,
+      content: 'This message was deleted.',
+      fileUrl: undefined,
+      fileType: undefined,
+    });
   },
 });
 
 export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (q) => q.eq('clerkId', args.clerkId))
+      .unique();
+    if (!user) throw new Error('User not found');
     return ctx.storage.generateUploadUrl();
   },
 });
 
 export const getFileUrl = mutation({
-  args: { storageId: v.string() },
+  args: { storageId: v.string(), clerkId: v.string() },
   handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (q) => q.eq('clerkId', args.clerkId))
+      .unique();
+    if (!user) throw new Error('User not found');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const metadata = await ctx.storage.getMetadata(args.storageId as any);
+    if (!metadata) throw new Error('File not found in storage');
+    if (metadata.size > MAX_FILE_SIZE_BYTES) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await ctx.storage.delete(args.storageId as any);
+      throw new Error('File exceeds the 25 MB size limit');
+    }
+    if (metadata.contentType && !ALLOWED_MIME_TYPES.has(metadata.contentType)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await ctx.storage.delete(args.storageId as any);
+      throw new Error('File type not allowed');
+    }
+
     return ctx.storage.getUrl(args.storageId);
   },
 });
