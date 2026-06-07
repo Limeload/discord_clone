@@ -64,6 +64,8 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
     isCameraOn,
     isDeafened,
     isScreenSharing,
+    mediaError,
+    clearMediaError,
     voiceParticipants,
     join,
     leave,
@@ -99,15 +101,47 @@ export function VoiceArea({ channelId, onLeave }: VoiceAreaProps) {
         <span className="ml-2 w-2 h-2 rounded-full bg-discord-green animate-pulse" />
       </div>
 
+      {/* Media access error banner */}
+      {mediaError && (
+        <div className="mx-4 mt-3 flex items-start gap-3 bg-red-900/40 border border-red-700/60 rounded-lg px-4 py-3">
+          <span className="text-red-400 text-lg shrink-0">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-red-300">{mediaError}</p>
+          </div>
+          <button
+            onClick={clearMediaError}
+            className="text-red-400 hover:text-red-200 shrink-0 text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Video grid */}
       <div className="flex-1 overflow-y-auto p-4">
         {peerArray.length === 0 && !localStream ? (
           <div className="flex flex-col items-center justify-center h-full gap-4 text-discord-muted">
-            <div className="text-5xl">🎙️</div>
-            <p className="text-lg font-semibold text-discord-text">
-              You're the only one here
-            </p>
-            <p className="text-sm">Waiting for others to join...</p>
+            {mediaError ? (
+              <>
+                <div className="text-5xl">🎙️</div>
+                <p className="text-lg font-semibold text-discord-text">Unable to join voice</p>
+                <button
+                  onClick={() => { clearMediaError(); join(false); }}
+                  className="text-sm text-discord-link hover:underline"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-5xl">🎙️</div>
+                <p className="text-lg font-semibold text-discord-text">
+                  You're the only one here
+                </p>
+                <p className="text-sm">Waiting for others to join...</p>
+              </>
+            )}
           </div>
         ) : (
           <div

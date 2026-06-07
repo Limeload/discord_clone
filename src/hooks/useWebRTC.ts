@@ -27,6 +27,7 @@ export function useWebRTC(
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const peersRef = useRef<Map<string, PeerState>>(new Map());
 
   const sendSignal = useMutation(api.signals.send);
@@ -123,14 +124,32 @@ export function useWebRTC(
     });
   }, [incomingSignals, channelId, clerkId, currentUserId, createPeerConnection, sendSignal, markProcessed]);
 
+  function describeMediaError(err: unknown): string {
+    const name = err instanceof Error ? err.name : '';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError')
+      return 'Microphone access denied. Please allow access in your browser settings and try again.';
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError')
+      return 'No microphone found. Please connect a microphone and try again.';
+    if (name === 'NotReadableError' || name === 'TrackStartError')
+      return 'Could not access your microphone. It may be in use by another application.';
+    return 'Could not access media devices. Please check your browser settings.';
+  }
+
   const join = useCallback(
     async (withVideo = false) => {
       if (!channelId || !clerkId) return;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: withVideo,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: withVideo,
+        });
+      } catch (err) {
+        setMediaError(describeMediaError(err));
+        return;
+      }
+      setMediaError(null);
       setLocalStream(stream);
       setIsCameraOn(withVideo);
 
@@ -196,7 +215,14 @@ export function useWebRTC(
 
     if (isScreenSharing) {
       // Restore camera/mic stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isCameraOn });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isCameraOn });
+      } catch (err) {
+        setMediaError(describeMediaError(err));
+        return;
+      }
+      setMediaError(null);
       const videoTrack = stream.getVideoTracks()[0] ?? null;
       peersRef.current.forEach(({ connection }) => {
         connection.getSenders().forEach((sender) => {
@@ -241,6 +267,8 @@ export function useWebRTC(
     isCameraOn,
     isDeafened,
     isScreenSharing,
+    mediaError,
+    clearMediaError: () => setMediaError(null),
     voiceParticipants: voiceParticipants ?? [],
     join,
     leave,
