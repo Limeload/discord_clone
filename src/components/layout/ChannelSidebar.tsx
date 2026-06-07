@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { UserButton } from '@clerk/clerk-react';
 import {
   Hash,
@@ -21,6 +21,8 @@ import {
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useServerPermissions } from '../../hooks/useServerPermissions';
+import { useServerActions } from '../../hooks/useServerActions';
 import { Avatar } from '../ui/Avatar';
 import { cn } from '../../lib/utils';
 
@@ -178,24 +180,24 @@ export function ChannelSidebar({
   const { clerkUser, convexUser } = useCurrentUser();
   const server = useQuery(api.servers.getById, { serverId });
   const channels = useQuery(api.channels.getByServer, { serverId });
-  const members = useQuery(api.servers.getMembers, { serverId });
-  const deleteChannel = useMutation(api.channels.remove);
-  const renameServer = useMutation(api.servers.rename);
+
+  const { isOwner, canManage, members, onlineMembers, offlineMembers } =
+    useServerPermissions(serverId, convexUser?._id);
+
+  const {
+    handleDeleteChannel,
+    renamingServer,
+    renameValue,
+    setRenameValue,
+    renameError,
+    handleRenameServer,
+    startRenaming,
+    cancelRenaming,
+  } = useServerActions(serverId, clerkUser?.id);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [showMembers, setShowMembers] = useState(true);
-  const [renamingServer, setRenamingServer] = useState(false);
-  const [renameValue, setRenameValue] = useState('');
-  const [renameError, setRenameError] = useState<string | null>(null);
-
-  const RESERVED_SERVER_NAMES = new Set([
-    'discord', 'admin', 'administrator', 'staff', 'support', 'official', 'system', 'null', 'undefined',
-  ]);
-
-  const myMembership = members?.find((m) => m.userId === convexUser?._id);
-  const isOwner = myMembership?.role === 'owner';
-  const canManage = isOwner || myMembership?.role === 'admin';
 
   const textChannels = (channels ?? []).filter((c) => c.type === 'text');
   const voiceChannels = (channels ?? []).filter((c) => c.type !== 'text');
@@ -208,35 +210,6 @@ export function ChannelSidebar({
     });
   }
 
-  async function handleDeleteChannel(channelId: Id<'channels'>) {
-    if (!clerkUser) return;
-    if (!confirm('Delete this channel? This cannot be undone.')) return;
-    await deleteChannel({ channelId, clerkId: clerkUser.id });
-  }
-
-  async function handleRenameServer() {
-    if (!clerkUser) return;
-    const name = renameValue.trim();
-    if (name.length < 2 || name.length > 100) {
-      setRenameError('Name must be 2–100 characters');
-      return;
-    }
-    if (RESERVED_SERVER_NAMES.has(name.toLowerCase())) {
-      setRenameError(`"${name}" is a reserved name`);
-      return;
-    }
-    setRenameError(null);
-    try {
-      await renameServer({ serverId, name, clerkId: clerkUser.id });
-      setRenamingServer(false);
-    } catch (err) {
-      setRenameError(err instanceof Error ? err.message : 'Rename failed');
-    }
-  }
-
-  const onlineMembers = (members ?? []).filter((m) => m.user?.isOnline);
-  const offlineMembers = (members ?? []).filter((m) => !m.user?.isOnline);
-
   return (
     <div className="w-60 bg-discord-sidebar flex flex-col">
       {/* Server header */}
@@ -247,10 +220,10 @@ export function ChannelSidebar({
               <input
                 autoFocus
                 value={renameValue}
-                onChange={(e) => { setRenameValue(e.target.value); setRenameError(null); }}
+                onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleRenameServer();
-                  if (e.key === 'Escape') { setRenamingServer(false); setRenameError(null); }
+                  if (e.key === 'Escape') cancelRenaming();
                 }}
                 maxLength={100}
                 className="flex-1 bg-discord-input text-white text-sm px-2 py-1 rounded outline-none focus:ring-1 focus:ring-discord-link"
@@ -258,7 +231,7 @@ export function ChannelSidebar({
               <button onClick={handleRenameServer} className="p-1 text-discord-green hover:text-white">
                 <Check size={14} />
               </button>
-              <button onClick={() => { setRenamingServer(false); setRenameError(null); }} className="p-1 text-discord-muted hover:text-white">
+              <button onClick={cancelRenaming} className="p-1 text-discord-muted hover:text-white">
                 <X size={14} />
               </button>
             </div>
@@ -282,7 +255,7 @@ export function ChannelSidebar({
             isOwner={isOwner ?? false}
             onInvite={onInvite}
             onCreateChannel={onCreateChannel}
-            onRename={() => { setRenameValue(server?.name ?? ''); setRenamingServer(true); }}
+            onRename={() => startRenaming(server?.name ?? '')}
             onLeave={onLeaveServer}
             onDelete={onDeleteServer}
             onClose={() => setDropdownOpen(false)}
