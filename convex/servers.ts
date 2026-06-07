@@ -173,25 +173,25 @@ export const remove = mutation({
     if (!server) throw new Error('Server not found');
     if (server.ownerId !== user._id) throw new Error('Only the owner can delete a server');
 
-    // Delete all members, channels, messages
-    const members = await ctx.db
-      .query('members')
-      .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
-      .collect();
-    await Promise.all(members.map((m) => ctx.db.delete(m._id)));
+    // Fetch members and channels in parallel, then fan out message deletes concurrently
+    const [members, channels] = await Promise.all([
+      ctx.db.query('members').withIndex('by_server', (q) => q.eq('serverId', args.serverId)).collect(),
+      ctx.db.query('channels').withIndex('by_server', (q) => q.eq('serverId', args.serverId)).collect(),
+    ]);
 
-    const channels = await ctx.db
-      .query('channels')
-      .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
-      .collect();
-    for (const ch of channels) {
-      const messages = await ctx.db
-        .query('messages')
-        .withIndex('by_channel', (q) => q.eq('channelId', ch._id))
-        .collect();
-      await Promise.all(messages.map((m) => ctx.db.delete(m._id)));
-      await ctx.db.delete(ch._id);
-    }
+    await Promise.all([
+      Promise.all(members.map((m) => ctx.db.delete(m._id))),
+      Promise.all(
+        channels.map(async (ch) => {
+          const messages = await ctx.db
+            .query('messages')
+            .withIndex('by_channel', (q) => q.eq('channelId', ch._id))
+            .collect();
+          await Promise.all(messages.map((msg) => ctx.db.delete(msg._id)));
+          await ctx.db.delete(ch._id);
+        })
+      ),
+    ]);
 
     await ctx.db.delete(args.serverId);
   },
