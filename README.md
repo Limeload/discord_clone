@@ -70,6 +70,50 @@ https://your-project.convex.site/clerk-webhook
 
 Subscribe to `user.created` and `user.updated` events. This keeps user records in sync between Clerk and Convex.
 
+## Discord Slash Commands via Convex
+
+### 1. Set up Discord Application
+- Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create an application.
+- Under "Bot" > "Privileged Gateway Intents", enable the required intents.
+- Under "OAuth2" > "URL Generator", add the `applications.commands` and `bot` scopes.
+- Under "General Information", copy your **Public Key**.
+
+### 2. Configure Environment Variables
+Add the following to your `.env.local`:
+
+```
+DISCORD_PUBLIC_KEY=your-discord-public-key-here
+```
+
+### 3. Register the Slash Command
+Use Discord's API or a tool to register a command, e.g.:
+
+```
+curl -X POST "https://discord.com/api/v10/applications/<app_id>/commands" \
+  -H "Authorization: Bot <bot_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "echo",
+    "description": "Echo back your input",
+    "options": [{
+      "name": "text",
+      "description": "Text to echo",
+      "type": 3,
+      "required": false
+    }]
+  }'
+```
+
+### 4. Add the Convex Endpoint to Discord
+In the Discord Developer Portal, set your Interactions Endpoint URL to:
+
+```
+https://<your-convex-deployment>.convex.site/discord-interactions
+```
+
+### 5. Test the Command
+Type `/echo hello` in your Discord server. The bot should reply with `hello`.
+
 ## Deployment
 
 **Backend:**

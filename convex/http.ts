@@ -70,4 +70,54 @@ http.route({
   }),
 });
 
+// --- Discord Interactions Endpoint ---
+// See: https://discord.com/developers/docs/interactions/receiving-and-responding
+import nacl from 'tweetnacl';
+
+const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY ?? '';
+
+http.route({
+  path: '/discord-interactions',
+  method: 'POST',
+  handler: httpAction(async (_ctx, request) => {
+    // Discord signature verification
+    const signature = request.headers.get('x-signature-ed25519');
+    const timestamp = request.headers.get('x-signature-timestamp');
+    if (!signature || !timestamp) {
+      return new Response('Missing signature headers', { status: 401 });
+    }
+    const body = await request.arrayBuffer();
+    const isVerified = nacl.sign.detached.verify(
+      new TextEncoder().encode(timestamp + new TextDecoder().decode(body)),
+      Buffer.from(signature, 'hex'),
+      Buffer.from(DISCORD_PUBLIC_KEY, 'hex')
+    );
+    if (!isVerified) {
+      return new Response('Invalid request signature', { status: 401 });
+    }
+    const json = JSON.parse(new TextDecoder().decode(body));
+    // Ping
+    if (json.type === 1) {
+      return Response.json({ type: 1 });
+    }
+    // Slash command
+    if (json.type === 2) {
+      // Example: echo command
+      if (json.data.name === 'echo') {
+        return Response.json({
+          type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+          data: { content: json.data.options?.[0]?.value || 'No input' },
+        });
+      }
+      // Unknown command
+      return Response.json({
+        type: 4,
+        data: { content: 'Unknown command.' },
+      });
+    }
+    // Default: not handled
+    return new Response('Unhandled interaction', { status: 400 });
+  }),
+});
+
 export default http;
